@@ -36,7 +36,7 @@ def build_pytorch3d_mesh(geom):
         raise ValueError("Unsupported geom!")
     
     verts = torch.tensor(trmesh.vertices, dtype=torch.float32)
-    verts = geom.offset.transform_points(verts)
+    verts = geom.offset.transform_points(verts)[0]
     faces = torch.tensor(trmesh.faces, dtype=torch.int64)
     verts_features = rgb.unsqueeze(0).repeat(verts.shape[0], 1) 
     verts_features = verts_features.unsqueeze(0)
