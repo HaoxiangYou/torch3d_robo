@@ -187,24 +187,21 @@ class Chain:
         return None
 
     @staticmethod
-    def _get_joints(frame, exclude_fixed=True):
+    def _get_joints(frame):
         joints = []
-        if exclude_fixed and frame.joint.joint_type != "fixed":
-            joints.append(frame.joint)
+        joints.append(frame.joint)
         for child in frame.children:
             joints.extend(Chain._get_joints(child))
         return joints
 
-    def get_joints(self, exclude_fixed=True):
-        joints = self._get_joints(self._root, exclude_fixed=exclude_fixed)
+    def get_joints(self):
+        joints = self._get_joints(self._root)
         return joints
 
     @lru_cache()
-    def get_joint_parameter_names(self, exclude_fixed=True):
+    def get_joint_parameter_names(self):
         names = []
-        for j in self.get_joints(exclude_fixed=exclude_fixed):
-            if exclude_fixed and j.joint_type == 'fixed':
-                continue
+        for j in self.get_joints():
             names.append(j.name)
         return names
 
@@ -229,29 +226,27 @@ class Chain:
         return self._find_joint_recursive(name, self._root)
 
     @staticmethod
-    def _get_joint_parent_frame_names(frame, exclude_fixed=True):
+    def _get_joint_parent_frame_names(frame):
         joint_names = []
-        if not (exclude_fixed and frame.joint.joint_type == "fixed"):
-            joint_names.append(frame.name)
+        joint_names.append(frame.name)
         for child in frame.children:
-            joint_names.extend(Chain._get_joint_parent_frame_names(child, exclude_fixed))
+            joint_names.extend(Chain._get_joint_parent_frame_names(child))
         return joint_names
 
-    def get_joint_parent_frame_names(self, exclude_fixed=True):
-        names = self._get_joint_parent_frame_names(self._root, exclude_fixed)
+    def get_joint_parent_frame_names(self):
+        names = self._get_joint_parent_frame_names(self._root)
         return sorted(set(names), key=names.index)
 
     @staticmethod
-    def _get_frame_names(frame: Frame, exclude_fixed=True) -> Sequence[str]:
+    def _get_frame_names(frame: Frame) -> Sequence[str]:
         names = []
-        if not (exclude_fixed and frame.joint.joint_type == "fixed"):
-            names.append(frame.name)
+        names.append(frame.name)
         for child in frame.children:
-            names.extend(Chain._get_frame_names(child, exclude_fixed))
+            names.extend(Chain._get_frame_names(child))
         return names
 
-    def get_frame_names(self, exclude_fixed=True):
-        names = self._get_frame_names(self._root, exclude_fixed)
+    def get_frame_names(self):
+        names = self._get_frame_names(self._root)
         return sorted(set(names), key=names.index)
 
     @staticmethod
@@ -376,7 +371,7 @@ class Chain:
         return th
 
     def get_all_frame_indices(self):
-        frame_indices = self.get_frame_indices(*self.get_frame_names(exclude_fixed=False))
+        frame_indices = self.get_frame_indices(*self.get_frame_names())
         return frame_indices
 
     def clamp(self, th):

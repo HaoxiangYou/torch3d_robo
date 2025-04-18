@@ -1,3 +1,6 @@
+import sys, os
+proj_dir = os.path.join(os.path.dirname(__file__), "..")
+sys.path.append(proj_dir)
 import torch
 import matplotlib.pyplot as plt
 from robot_renderer.cartpole_renderer import CartpoleRenderer
