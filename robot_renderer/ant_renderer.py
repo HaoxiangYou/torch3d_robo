@@ -9,21 +9,20 @@ from pytorch3d.renderer import (
     SoftPhongShader, PointLights, look_at_view_transform
 )
 
-
-class CartpoleRenderer(BaseRoboRenderer):
+class AntRenderer(BaseRoboRenderer):
     def __init__(self, img_height=84, img_width=84, device="cuda"):
-        super().__init__(os.path.join(proj_dir, "assets/cartpole.xml"), img_height=img_height, img_width=img_width, device=device)
+        super().__init__(os.path.join(proj_dir, "assets/ant.xml"), img_height=img_height, img_width=img_width, device=device)
 
     def build_background(self):
-        self.raw_meshes["background"] = [create_floor(x_dim=10, y_dim=5),
-                                        create_sky_plane(center=[0, 5, 1], x_dim=20, z_dim=20, star_density=20)]
-    
+        self.raw_meshes["background"] = [create_floor(x_dim=500, y_dim=50, tile_size=2, device=self.device, center=[200, 0, 0]),
+                                        create_sky_plane(center=[100, 50, 0], z_dim=200, x_dim=500, device=self.device, star_density=10)]
+
     def get_camera(self, qpos, camera_id):
         qpos = torch.atleast_2d(qpos)
         batch_size = qpos.shape[0]
         R, T = look_at_view_transform(
-            eye=torch.tile(torch.tensor([0, -2.8, 1.2], dtype=torch.float32, device=self.device), (batch_size, 1)),
-            at=torch.tile(torch.tensor([0, 0, 1.2], dtype=torch.float32, device=self.device), (batch_size, 1)),
+            eye=torch.tile(torch.tensor([0.5, -2, 1], dtype=torch.float32, device=self.device), (batch_size, 1)) + qpos[:,:3],
+            at=torch.tile(torch.tensor([0, 0, 1], dtype=torch.float32, device=self.device), (batch_size, 1)) + qpos[:, :3],
             up=torch.tile(torch.tensor([0, 0, 1], dtype=torch.float32, device=self.device), (batch_size, 1)),
             device=self.device)
                 
@@ -40,12 +39,13 @@ class CartpoleRenderer(BaseRoboRenderer):
     def get_lights(self, qpos):
         qpos = torch.atleast_2d(qpos)
         batch_size = qpos.shape[0]
-        light_position = torch.tensor([[0.0, 0.0, 6.0]], device=self.device).expand(batch_size, -1)
+        
+        light_position = qpos[:, :3] + torch.tensor([[0.0, 0.0, 6.0]], device=self.device).expand(batch_size, -1)
 
         # Define the light parameters
         ambient_color = torch.tensor([[0.4, 0.4, 0.4]], device=self.device).expand(batch_size, -1)   # Ambient light color
         diffuse_color = torch.tensor([[0.8, 0.8, 0.8]], device=self.device).expand(batch_size, -1)   # Diffuse light color
-        specular_color = torch.tensor([[0.1, 0.1, 0.1]], device=self.device) .expand(batch_size, -1) # Specular highlights
+        specular_color = torch.tensor([[0.3, 0.3, 0.3]], device=self.device) .expand(batch_size, -1) # Specular highlights
 
         # Create the PointLight object in PyTorch3D
         return PointLights(
@@ -58,7 +58,7 @@ class CartpoleRenderer(BaseRoboRenderer):
         
     def get_transform(self, qpos):
         qpos = torch.atleast_2d(qpos)
-        return self.chain.forward_kinematics(qpos)
+        return self.chain.forward_kinematics(qpos[:, 7:], root_pos=qpos[:, :3], root_quat=qpos[:, 3:7])
 
     def get_renderer(self, qpos, camera_id):
         cameras = self.get_camera(qpos, camera_id)

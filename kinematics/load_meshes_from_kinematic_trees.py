@@ -46,7 +46,7 @@ def build_pytorch3d_mesh(geom):
                 textures=TexturesVertex(verts_features=verts_features))
 
 def build_meshes_from_chain(chain: Chain):
-    frames_name = chain.get_frame_names()
+    frames_name = chain.get_frame_names(exclude_fixed_and_free=False)
     body_to_mesh = {}
     for frame_name in frames_name:
         geoms = []

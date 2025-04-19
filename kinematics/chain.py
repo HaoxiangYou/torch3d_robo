@@ -107,6 +107,7 @@ class Chain:
                 self.parents_indices.append(self.parents_indices[parent_idx] + [idx])
 
             is_fixed = root.joint.joint_type == 'fixed'
+            is_free = root.joint.joint_type == "free"
 
             if root.link.offset is None:
                 self.link_offsets.append(None)
@@ -118,7 +119,7 @@ class Chain:
             else:
                 self.joint_offsets.append(root.joint.offset.get_matrix())
 
-            if is_fixed:
+            if is_fixed or is_free:
                 self.joint_indices.append(-1)
             else:
                 jnt_idx = self.get_joint_parameter_names().index(root.joint.name)
@@ -187,21 +188,24 @@ class Chain:
         return None
 
     @staticmethod
-    def _get_joints(frame):
+    def _get_joints(frame, exclude_fixed_and_free=True):
         joints = []
-        joints.append(frame.joint)
+        if not (exclude_fixed_and_free and (frame.joint.joint_type == "fixed" or frame.joint.joint_type == "free")):
+            joints.append(frame.joint)
         for child in frame.children:
-            joints.extend(Chain._get_joints(child))
+            joints.extend(Chain._get_joints(child, exclude_fixed_and_free=exclude_fixed_and_free))
         return joints
 
-    def get_joints(self):
-        joints = self._get_joints(self._root)
+    def get_joints(self, exclude_fixed_and_free=True):
+        joints = self._get_joints(self._root, exclude_fixed_and_free=exclude_fixed_and_free)
         return joints
 
     @lru_cache()
-    def get_joint_parameter_names(self):
+    def get_joint_parameter_names(self, exclude_fixed_and_free=True):
         names = []
-        for j in self.get_joints():
+        for j in self.get_joints(exclude_fixed_and_free=exclude_fixed_and_free):
+            if exclude_fixed_and_free and (j.joint_type == "fixed" or j.joint_type == "free"):
+                continue
             names.append(j.name)
         return names
 
@@ -226,27 +230,29 @@ class Chain:
         return self._find_joint_recursive(name, self._root)
 
     @staticmethod
-    def _get_joint_parent_frame_names(frame):
+    def _get_joint_parent_frame_names(frame, exclude_fixed_and_free=True):
         joint_names = []
-        joint_names.append(frame.name)
+        if not (exclude_fixed_and_free and (frame.joint.joint_type == "fixed" or frame.joint.joint_type == "free")):
+            joint_names.append(frame.name)
         for child in frame.children:
             joint_names.extend(Chain._get_joint_parent_frame_names(child))
         return joint_names
 
-    def get_joint_parent_frame_names(self):
-        names = self._get_joint_parent_frame_names(self._root)
+    def get_joint_parent_frame_names(self, exclude_fixed_and_free=True):
+        names = self._get_joint_parent_frame_names(self._root, exclude_fixed_and_free=exclude_fixed_and_free)
         return sorted(set(names), key=names.index)
 
     @staticmethod
-    def _get_frame_names(frame: Frame) -> Sequence[str]:
+    def _get_frame_names(frame: Frame, exclude_fixed_and_free=True) -> Sequence[str]:
         names = []
-        names.append(frame.name)
+        if not (exclude_fixed_and_free and (frame.joint.joint_type == "fixed" or frame.joint.joint_type == "free")):
+            names.append(frame.name)
         for child in frame.children:
             names.extend(Chain._get_frame_names(child))
         return names
 
-    def get_frame_names(self):
-        names = self._get_frame_names(self._root)
+    def get_frame_names(self, exclude_fixed_and_free=True):
+        names = self._get_frame_names(self._root, exclude_fixed_and_free=exclude_fixed_and_free)
         return sorted(set(names), key=names.index)
 
     @staticmethod
@@ -281,26 +287,36 @@ class Chain:
             print(tree)
         return tree
 
-    def forward_kinematics(self, th, frame_indices = None):
+    def forward_kinematics(self, th, root_pos=None, root_quat=None):
         """
         Compute forward kinematics for the given joint values.
 
         Args:
             th: A dict, list, numpy array, or torch tensor of joints values. Possibly batched.
-            frame_indices: A list of frame indices to compute transforms for. If None, all frames are computed.
-                Use `get_frame_indices` to convert from frame names to frame indices.
-
+            root_pos: the position of root joint
+            root_quat: the orientation of root joit
         Returns:
             A dict of Transform3d objects for each frame.
 
         """
-        if frame_indices is None:
-            frame_indices = self.get_all_frame_indices()
+        frame_indices = self.get_all_frame_indices()
 
         th = self.ensure_tensor(th)
         th = torch.atleast_2d(th)
-
         b = th.shape[0]
+        
+        if root_pos is None:
+            root_pos = torch.tensor([0, 0, 0]).to(th).unsqueeze(0).repeat(b, 1)
+        if root_quat is None:
+            root_quat = torch.tensor([1, 0, 0, 0]).to(th).unsqueeze(0).repeat(b, 1)
+
+        root_pos = self.ensure_tensor(root_pos)
+        root_pos = torch.atleast_2d(root_pos)
+        root_quat = self.ensure_tensor(root_quat)
+        root_quat = torch.atleast_2d(root_quat)
+        assert root_pos.shape[0] == b
+        assert root_quat.shape[0] == b
+
         axes_expanded = self.axes.unsqueeze(0).repeat(b, 1, 1)
 
         # compute all joint transforms at once first
@@ -312,7 +328,7 @@ class Chain:
         frame_transforms = {}
         b = th.shape[0]
         for frame_idx in frame_indices:
-            frame_transform = torch.eye(4).to(th).unsqueeze(0).repeat(b, 1, 1)
+            frame_transform = tf.Transform3d(pos=root_pos, rot=root_quat, device=th.device).get_matrix()
 
             # iterate down the list and compose the transform
             for chain_idx in self.parents_indices[frame_idx.item()]:
@@ -371,7 +387,7 @@ class Chain:
         return th
 
     def get_all_frame_indices(self):
-        frame_indices = self.get_frame_indices(*self.get_frame_names())
+        frame_indices = self.get_frame_indices(*self.get_frame_names(exclude_fixed_and_free=False))
         return frame_indices
 
     def clamp(self, th):

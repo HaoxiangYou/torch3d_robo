@@ -48,7 +48,7 @@ class Link(object):
 
 
 class Joint(object):
-    TYPES = ['fixed', 'revolute', 'prismatic']
+    TYPES = ['fixed', 'revolute', 'prismatic', 'free']
 
     def __init__(self, name=None, offset=None, joint_type='fixed', axis=(0.0, 0.0, 1.0),
                  dtype=torch.float32, device="cpu", limits=None,

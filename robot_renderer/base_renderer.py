@@ -69,9 +69,13 @@ class BaseRoboRenderer:
         self.device = device
         self.chain = build_chain_from_mjcf(xml_path)
         self.raw_meshes = build_meshes_from_chain(self.chain)
+        self.build_background()
         self.img_height = img_height,
         self.img_width = img_width
         self.to(self.device)
+
+    def build_background(self):
+        pass
 
     def to(self, device):
         self.chain.to(device=device)
@@ -81,11 +85,14 @@ class BaseRoboRenderer:
                 meshes_on_new_devices.append(mesh.to(device))
             self.raw_meshes[body_name] = meshes_on_new_devices
 
-    def build_scene_meshes(self, qpos):
-        batch_size = qpos.shape[0]
+    def build_scene_meshes(self, transforms):
+        batch_size = len(next(iter(transforms.values())))
         meshes = []
-        body_transforms = self.chain.forward_kinematics(qpos)
-        for body_name, transform in body_transforms.items():
+        if "background" in self.raw_meshes:
+            background_meshes = self.raw_meshes["background"]
+            for background_mesh in background_meshes:
+                meshes.append(background_mesh.extend(batch_size))
+        for body_name, transform in transforms.items():
             if body_name in self.raw_meshes:
                 raw_meshes = self.raw_meshes[body_name]
                 for raw_mesh in raw_meshes:
@@ -100,9 +107,14 @@ class BaseRoboRenderer:
     
     def get_renderer(self, qpos, camera_id=0):
         raise NotImplementedError
+    
+    def get_transform(self, qpos):
+        raise NotImplementedError
 
     def render(self, qpos, camera_id=0):
+        qpos = torch.atleast_2d(qpos)
         renderer = self.get_renderer(qpos=qpos, camera_id=camera_id)
-        meshes = self.build_scene_meshes(qpos)
+        transforms = self.get_transform(qpos)
+        meshes = self.build_scene_meshes(transforms)
         images = renderer(meshes)
-        return images
+        return torch.clamp(images, 0.0, 1.0)

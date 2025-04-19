@@ -10,6 +10,7 @@ import kinematics.transforms as tf
 
 # Converts from MuJoCo joint types to pytorch_kinematics joint types
 JOINT_TYPE_MAP = {
+    mujoco.mjtJoint.mjJNT_FREE: 'free',
     mujoco.mjtJoint.mjJNT_HINGE: 'revolute',
     mujoco.mjtJoint.mjJNT_SLIDE: "prismatic"
 }
