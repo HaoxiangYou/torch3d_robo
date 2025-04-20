@@ -11,11 +11,11 @@ from pytorch3d.renderer import (
 
 class AntRenderer(BaseRoboRenderer):
     def __init__(self, img_height=84, img_width=84, device="cuda"):
-        super().__init__(os.path.join(proj_dir, "assets/ant.xml"), img_height=img_height, img_width=img_width, device=device)
+        super().__init__(os.path.join(proj_dir, "assets/xmls/ant.xml"), img_height=img_height, img_width=img_width, device=device)
 
     def build_background(self):
-        self.raw_meshes["background"] = [create_floor(x_dim=500, y_dim=50, tile_size=2, device=self.device, center=[200, 0, 0]),
-                                        create_sky_plane(center=[100, 50, 0], z_dim=200, x_dim=500, device=self.device, star_density=10)]
+        self.raw_meshes["background"] = [create_floor(x_dim=200, y_dim=40, device=self.device, center=[50, 0, 0]),
+                                        create_sky_plane(center=[50, 20, 0], z_dim=100, x_dim=200, device=self.device)]
 
     def get_camera(self, qpos, camera_id):
         qpos = torch.atleast_2d(qpos)

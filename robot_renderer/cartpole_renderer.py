@@ -12,11 +12,12 @@ from pytorch3d.renderer import (
 
 class CartpoleRenderer(BaseRoboRenderer):
     def __init__(self, img_height=84, img_width=84, device="cuda"):
-        super().__init__(os.path.join(proj_dir, "assets/cartpole.xml"), img_height=img_height, img_width=img_width, device=device)
+        super().__init__(os.path.join(proj_dir, "assets/xmls/cartpole.xml"), img_height=img_height, img_width=img_width, device=device)
 
     def build_background(self):
-        self.raw_meshes["background"] = [create_floor(x_dim=10, y_dim=5),
-                                        create_sky_plane(center=[0, 5, 1], x_dim=20, z_dim=20, star_density=20)]
+        self.raw_meshes["background"] = [create_floor(device=self.device, x_dim=10, y_dim=5),
+                                        create_sky_plane(device=self.device, x_dim=20, z_dim=20, center=[0, 5, 1])
+                                        ]
     
     def get_camera(self, qpos, camera_id):
         qpos = torch.atleast_2d(qpos)
