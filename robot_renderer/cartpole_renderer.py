@@ -15,8 +15,8 @@ class CartpoleRenderer(BaseRoboRenderer):
         super().__init__(os.path.join(proj_dir, "assets/xmls/cartpole.xml"), img_height=img_height, img_width=img_width, device=device)
 
     def build_background(self):
-        self.raw_meshes["background"] = [create_floor(device=self.device, x_dim=10, y_dim=5),
-                                        create_sky_plane(device=self.device, x_dim=20, z_dim=20, center=[0, 5, 1])
+        self.raw_meshes["background"] = [create_floor(device=self.device, x_dim=10, y_dim=4),
+                                        create_sky_plane(device=self.device, x_dim=10, z_dim=10, center=[0, 2, 1])
                                         ]
     
     def get_camera(self, qpos, camera_id):
