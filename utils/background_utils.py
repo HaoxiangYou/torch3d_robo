@@ -6,7 +6,7 @@ from pytorch3d.structures import Meshes
 import imageio.v3 as iio
 from pytorch3d.renderer import TexturesUV
 
-def create_floor(center=[0, 0, 0], x_dim=200.0, y_dim=200.0, margin=0, res = 8,
+def create_floor(center=[0, 0, 0], x_dim=200.0, y_dim=200.0, margin=0, res=2,
                           texture_image_path=os.path.join(proj_dir, 'assets/textures/checkerboard.png'), device='cpu'):
     cx, cy, cz = center
     hx, hy = x_dim / 2, y_dim / 2
@@ -49,7 +49,7 @@ def create_floor(center=[0, 0, 0], x_dim=200.0, y_dim=200.0, margin=0, res = 8,
     textures = TexturesUV(maps=image, faces_uvs=[face_uvs], verts_uvs=[uvs])
     return Meshes(verts=[verts], faces=[faces], textures=textures)
 
-def create_sky_plane(center=[0, 0, 0], x_dim=200.0, z_dim=100.0, margin=0, res = 8,
+def create_sky_plane(center=[0, 0, 0], x_dim=200.0, z_dim=100.0, margin=0, res=2,
                      texture_image_path=os.path.join(proj_dir, 'assets/textures/skybox.png'),
                      device='cpu'):
     cx, cy, cz = center

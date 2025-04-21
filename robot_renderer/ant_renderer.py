@@ -14,8 +14,9 @@ class AntRenderer(BaseRoboRenderer):
         super().__init__(os.path.join(proj_dir, "assets/xmls/ant.xml"), img_height=img_height, img_width=img_width, device=device)
 
     def build_background(self):
-        self.raw_meshes["background"] = [create_floor(x_dim=200, y_dim=40, device=self.device, center=[50, 0, 0]),
-                                        create_sky_plane(center=[50, 20, 0], z_dim=100, x_dim=200, device=self.device)]
+        self.raw_meshes["background"] = [create_floor(x_dim=150, y_dim=10, device=self.device, center=[10, 0, 0]),
+                                        create_sky_plane(center=[10, 5, 10], z_dim=20, x_dim=150, device=self.device)
+                                        ]
 
     def get_camera(self, qpos, camera_id):
         qpos = torch.atleast_2d(qpos)

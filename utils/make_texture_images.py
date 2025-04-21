@@ -2,7 +2,7 @@ import numpy as np
 from PIL import Image
 import random
 
-def save_checkerboard(path='checkerboard.png', total_length=200, tile_length=1, res=8):
+def save_checkerboard(path='checkerboard.png', total_length=200, tile_length=1, res=2):
     size = total_length * res
     img = np.zeros((size, size, 3), dtype=np.uint8)
     num_tiles = total_length // tile_length
@@ -12,7 +12,7 @@ def save_checkerboard(path='checkerboard.png', total_length=200, tile_length=1, 
                 img[i*res:(i+1)*res, j*res:(j+1)*res] = 255
     Image.fromarray(img).save(path)
 
-def save_skybox(path='skybox.png', total_length=200, top_rgb=(0.4, 0.6, 0.8), res=8, star_size=0.5,
+def save_skybox(path='skybox.png', total_length=200, top_rgb=(0.4, 0.6, 0.8), res=2, star_size=1,
                        bottom_rgb=(0, 0, 0), num_stars=1000):
     size = res * total_length
     top = np.array(top_rgb) * 255
@@ -32,5 +32,5 @@ def save_skybox(path='skybox.png', total_length=200, top_rgb=(0.4, 0.6, 0.8), re
         img[y-half_star_pixel:y+half_star_pixel, x-half_star_pixel:x+half_star_pixel] = [255, 255, 255]  # white star    
     Image.fromarray(img).save(path)
 
-# save_checkerboard()
+save_checkerboard()
 save_skybox()
