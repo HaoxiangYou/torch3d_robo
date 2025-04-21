@@ -102,10 +102,10 @@ tee =    '├── '
 last =   '└── '
 
 class Frame(object):
-    def __init__(self, name=None, link=None, joint=None, geoms=[], children=None):
+    def __init__(self, name=None, link=None, joints=[], geoms=[], children=None):
         self.name = 'None' if name is None else name
         self.link = link if link is not None else Link()
-        self.joint = joint if joint is not None else Joint()
+        self.joints = joints if len(joints) > 0 else [Joint()]
         self.geoms = geoms
         if children is None:
             self.children = []
@@ -125,7 +125,7 @@ class Frame(object):
         return ret
 
     def to(self, *args, **kwargs):
-        self.joint = self.joint.to(*args, **kwargs)
+        self.joints = [j.to(*args, **kwargs) for j in self.joints]
         self.link = self.link.to(*args, **kwargs)
         self.geoms = [g.to(*args, **kwargs) for g in self.geoms]
         self.children = [c.to(*args, **kwargs) for c in self.children]
@@ -137,20 +137,25 @@ class Frame(object):
     def is_end(self):
         return (len(self.children) == 0)
 
-    def get_transform(self, theta):
-        dtype = self.joint.axis.dtype
-        d = self.joint.axis.device
-        if self.joint.joint_type == 'revolute':
-            rot = axis_and_angle_to_matrix_33(self.joint.axis, theta)
-            t = tf.Transform3d(rot=rot, dtype=dtype, device=d)
-        elif self.joint.joint_type == 'prismatic':
-            pos = theta.unsqueeze(1) * self.joint.axis
-            t = tf.Transform3d(pos=pos, dtype=dtype, device=d)
-        elif self.joint.joint_type == 'fixed':
-            t = tf.Transform3d(default_batch_size=theta.shape[0], dtype=dtype, device=d)
-        else:
-            raise ValueError("Unsupported joint type %s." % self.joint.joint_type)
-        if self.joint.offset is None:
-            return t
-        else:
-            return self.joint.offset.compose(t)
+    def get_transform(self, thetas):
+        dtype = self.joints[0].axis.dtype
+        d = self.joints[0].axis.device
+        assert thetas.shape[-1] == len(self.joints)
+        t = tf.Transform3d(default_batch_size=theta.shape[0], dtype=dtype, device=d)
+        for i in range(thetas.shape[-1]):
+            theta = thetas[...,i]
+            joint = self.joints[i]
+            if joint.offset is not None:
+                t = t.compose(joint.offset)
+            if joint.joint_type == 'revolute':
+                rot = axis_and_angle_to_matrix_33(joint.axis, theta)
+                t = t.compose(tf.Transform3d(rot=rot, dtype=dtype, device=d))
+            elif joint.joint_type == 'prismatic':
+                pos = theta.unsqueeze(1) * joint.axis
+                t = t.compose(tf.Transform3d(pos=pos, dtype=dtype, device=d))
+            elif joint.joint_type == 'fixed':
+                pass
+            else:
+                raise ValueError("Unsupported joint type %s." % joint.joint_type)
+
+        return t

@@ -81,16 +81,16 @@ class Chain:
 
         # As we traverse the kinematic tree, each frame is assigned an index.
         # We use this index to build a flat representation of the tree.
-        # parents_indices and joint_indices all use this indexing scheme.
+        # parents_indices and body_joints_indices all use this indexing scheme.
         # The root frame will be index 0 and the first frame of the root frame's children will be index 1,
         # then the child of that frame will be index 2, etc. In other words, it's a depth-first ordering.
         self.parents_indices = []  # list of indices from 0 (root) to the given frame
-        self.joint_indices = []
+        self.body_joint_indices = []
         self.n_joints = len(self.get_joint_parameter_names())
         self.axes = torch.zeros([self.n_joints, 3], dtype=self.dtype, device=self.device)
         self.link_offsets = []
-        self.joint_offsets = []
-        self.joint_type_indices = []
+        self.body_joint_offsets = []
+        self.body_joint_type_indices = []
         queue = []
         queue.insert(-1, (self._root, -1, 0))  # the root has no parent so we use -1.
         idx = 0
@@ -106,36 +106,39 @@ class Chain:
             else:
                 self.parents_indices.append(self.parents_indices[parent_idx] + [idx])
 
-            is_fixed = root.joint.joint_type == 'fixed'
-            is_free = root.joint.joint_type == "free"
-
             if root.link.offset is None:
                 self.link_offsets.append(None)
             else:
                 self.link_offsets.append(root.link.offset.get_matrix())
 
-            if root.joint.offset is None:
-                self.joint_offsets.append(None)
-            else:
-                self.joint_offsets.append(root.joint.offset.get_matrix())
+            joint_indices = []
+            joint_type_indices = []
+            joint_offsets = []
+            for joint in root.joints:
+                is_fixed = joint.joint_type == 'fixed'
+                is_free = joint.joint_type == "free"
 
-            if is_fixed or is_free:
-                self.joint_indices.append(-1)
-            else:
-                jnt_idx = self.get_joint_parameter_names().index(root.joint.name)
-                self.axes[jnt_idx] = root.joint.axis
-                self.joint_indices.append(jnt_idx)
+                if joint.offset is None:
+                    joint_offsets.append(None)
+                else:
+                    joint_offsets.append(joint.offset.get_matrix())
 
-            # these are integers so that we can use them as indices into tensors
-            # FIXME: how do we know the order of these types in C++?
-            self.joint_type_indices.append(Joint.TYPES.index(root.joint.joint_type))
+                if is_fixed or is_free:
+                    joint_indices.append(-1)
+                else:
+                    jnt_idx = self.get_joint_parameter_names().index(joint.name)
+                    self.axes[jnt_idx] = joint.axis
+                    joint_indices.append(jnt_idx)
+                joint_type_indices.append(Joint.TYPES.index(joint.joint_type))
+            
+            self.body_joint_indices.append(torch.tensor(joint_indices, device=self.device))
+            self.body_joint_type_indices.append(torch.tensor(joint_type_indices, device=self.device))
+            self.body_joint_offsets.append(joint_offsets)
 
             for child in root.children:
                 queue.append((child, idx, depth + 1))
 
             idx += 1
-        self.joint_type_indices = torch.tensor(self.joint_type_indices)
-        self.joint_indices = torch.tensor(self.joint_indices)
         # We need to use a dict because torch.compile doesn't list lists of tensors
         self.parents_indices = [torch.tensor(p, dtype=torch.long, device=self.device) for p in self.parents_indices]
 
@@ -148,12 +151,11 @@ class Chain:
 
         self.identity = self.identity.to(device=self.device, dtype=self.dtype)
         self.parents_indices = [p.to(dtype=torch.long, device=self.device) for p in self.parents_indices]
-        self.joint_type_indices = self.joint_type_indices.to(dtype=torch.long, device=self.device)
-        self.joint_indices = self.joint_indices.to(dtype=torch.long, device=self.device)
+        self.body_joint_type_indices = [typ.to(dtype=torch.long, device=self.device) for typ in self.body_joint_type_indices]
+        self.body_joint_indices = [idx.to(dtype=torch.long, device=self.device) for idx in self.body_joint_indices]
         self.axes = self.axes.to(dtype=self.dtype, device=self.device)
         self.link_offsets = [l if l is None else l.to(dtype=self.dtype, device=self.device) for l in self.link_offsets]
-        self.joint_offsets = [j if j is None else j.to(dtype=self.dtype, device=self.device) for j in
-                              self.joint_offsets]
+        self.body_joint_offsets = [[j.to(dtype=self.dtype, device=self.device) for j in joints] for joints in self.body_joint_offsets]
         self.low = self.low.to(dtype=self.dtype, device=self.device)
         self.high = self.high.to(dtype=self.dtype, device=self.device)
 
@@ -190,8 +192,9 @@ class Chain:
     @staticmethod
     def _get_joints(frame, exclude_fixed_and_free=True):
         joints = []
-        if not (exclude_fixed_and_free and (frame.joint.joint_type == "fixed" or frame.joint.joint_type == "free")):
-            joints.append(frame.joint)
+        for joint in frame.joints:
+            if not (exclude_fixed_and_free and (joint.joint_type == "fixed" or joint.joint_type == "free")):
+                joints.append(joint)
         for child in frame.children:
             joints.extend(Chain._get_joints(child, exclude_fixed_and_free=exclude_fixed_and_free))
         return joints
@@ -212,8 +215,9 @@ class Chain:
     @staticmethod
     def _find_joint_recursive(name, frame):
         for child in frame.children:
-            if child.joint.name == name:
-                return child.joint
+            for joint in child.joints:
+                if joint.name == name:
+                    return joint
             ret = Chain._find_joint_recursive(name, child)
             if not ret is None:
                 return ret
@@ -225,8 +229,9 @@ class Chain:
         return self._find_link_recursive(name, self._root)
 
     def find_joint(self, name):
-        if self._root.joint.name == name:
-            return self._root.joint
+        for joint in self._root.joints:
+            if joint.name == name:
+                return self._root.joint
         return self._find_joint_recursive(name, self._root)
 
     @staticmethod
@@ -245,8 +250,15 @@ class Chain:
     @staticmethod
     def _get_frame_names(frame: Frame, exclude_fixed_and_free=True) -> Sequence[str]:
         names = []
-        if not (exclude_fixed_and_free and (frame.joint.joint_type == "fixed" or frame.joint.joint_type == "free")):
+        if not exclude_fixed_and_free:
             names.append(frame.name)
+        else:
+            is_free_or_fixed = False
+            for joint in frame.joints:
+                if joint.joint_type == "fixed" or joint.joint_type == "free":
+                    is_free_or_fixed = True
+            if not is_free_or_fixed:
+                names.append(frame.name)
         for child in frame.children:
             names.extend(Chain._get_frame_names(child))
         return names
@@ -338,21 +350,22 @@ class Chain:
                     link_offset_i = self.link_offsets[chain_idx]
                     if link_offset_i is not None:
                         frame_transform = frame_transform @ link_offset_i
+                    n_joint = len(self.body_joint_indices[chain_idx])
+                    for i in range(n_joint):
+                        joint_offset_i = self.body_joint_offsets[chain_idx][i]
+                        if joint_offset_i is not None:
+                            frame_transform = frame_transform @ joint_offset_i
 
-                    joint_offset_i = self.joint_offsets[chain_idx]
-                    if joint_offset_i is not None:
-                        frame_transform = frame_transform @ joint_offset_i
-
-                    jnt_idx = self.joint_indices[chain_idx]
-                    jnt_type = self.joint_type_indices[chain_idx]
-                    if jnt_type == 0:
-                        pass
-                    elif jnt_type == 1:
-                        jnt_transform_i = rev_jnt_transform[:, jnt_idx]
-                        frame_transform = frame_transform @ jnt_transform_i
-                    elif jnt_type == 2:
-                        jnt_transform_i = pris_jnt_transform[:, jnt_idx]
-                        frame_transform = frame_transform @ jnt_transform_i
+                        jnt_idx = self.body_joint_indices[chain_idx][i]
+                        jnt_type = self.body_joint_type_indices[chain_idx][i]
+                        if jnt_type == 0:
+                            pass
+                        elif jnt_type == 1:
+                            jnt_transform_i = rev_jnt_transform[:, jnt_idx]
+                            frame_transform = frame_transform @ jnt_transform_i
+                        elif jnt_type == 2:
+                            jnt_transform_i = pris_jnt_transform[:, jnt_idx]
+                            frame_transform = frame_transform @ jnt_transform_i
 
             frame_transforms[frame_idx.item()] = frame_transform
 

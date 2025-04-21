@@ -27,20 +27,21 @@ def body_to_geoms(m: mujoco.MjModel, body: MjModelBodyViews):
     return geoms
 
 
-def parse_joint(m, body):
-    n_joints = body.jntnum
-    if n_joints > 1:
-        raise ValueError("composite joints not supported (could implement this if needed)")
-    if n_joints == 1:
-        # Find the joint for this body, again assuming there's only one joint per body.
-        joint = m.joint(body.jntadr[0])
-        joint_offset = tf.Transform3d(pos=joint.pos)
-        joint = frame.Joint(joint.name, offset=joint_offset, axis=joint.axis,
-                                    joint_type=JOINT_TYPE_MAP[joint.type[0]],
-                                    limits=(joint.range[0], joint.range[1]))
+def parse_joints(m, body):
+    joints = []
+    n_joints = body.jntnum[0]
+    if n_joints >= 1:
+        joint_address_start = body.jntadr[0]
+        for i in range(n_joints):
+            joint = m.joint(joint_address_start + i)
+            joint_offset = tf.Transform3d(pos=joint.pos)
+            joint = frame.Joint(joint.name, offset=joint_offset, axis=joint.axis,
+                                        joint_type=JOINT_TYPE_MAP[joint.type[0]],
+                                        limits=(joint.range[0], joint.range[1]))
+            joints.append(joint)
     else:
-        joint = frame.Joint(body.name + "_fixed_joint")
-    return joint
+        joints.append(frame.Joint(body.name + "_fixed_joint"))
+    return joints
 
 def _build_chain_recurse(m, parent_frame, parent_body):
     # iterate through all bodies that are children of parent_body
@@ -48,9 +49,9 @@ def _build_chain_recurse(m, parent_frame, parent_body):
         body = m.body(body_id)
         if body.parentid == parent_body.id and body_id != parent_body.id:
             child_link = frame.Link(body.name, offset=tf.Transform3d(rot=body.quat, pos=body.pos))
-            child_joint = parse_joint(m, body)
+            child_joints = parse_joints(m, body)
             child_geoms = body_to_geoms(m, body)
-            child_frame = frame.Frame(name=body.name, link=child_link, joint=child_joint, geoms=child_geoms)
+            child_frame = frame.Frame(name=body.name, link=child_link, joints=child_joints, geoms=child_geoms)
             parent_frame.children = parent_frame.children + [child_frame, ]
             _build_chain_recurse(m, child_frame, body)
 
@@ -75,7 +76,7 @@ def build_chain_from_mjcf(path):
     root_frame = frame.Frame(root_body.name,
                              link=frame.Link(root_body.name,
                                              offset=tf.Transform3d(rot=root_body.quat, pos=root_body.pos)),
-                             joint=parse_joint(m, root_body),
+                             joints=parse_joints(m, root_body),
                              geoms=body_to_geoms(m, root_body)
                             )
     _build_chain_recurse(m, root_frame, root_body)
