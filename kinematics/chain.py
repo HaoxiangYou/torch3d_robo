@@ -353,15 +353,15 @@ class Chain:
                     n_joint = len(self.body_joint_indices[chain_idx])
                     for i in range(n_joint):
                         joint_offset_i = self.body_joint_offsets[chain_idx][i]
-                        if joint_offset_i is not None:
-                            frame_transform = frame_transform @ joint_offset_i
-
                         jnt_idx = self.body_joint_indices[chain_idx][i]
                         jnt_type = self.body_joint_type_indices[chain_idx][i]
                         if jnt_type == 0:
                             pass
                         elif jnt_type == 1:
                             jnt_transform_i = rev_jnt_transform[:, jnt_idx]
+                            if joint_offset_i is not None:
+                                jnt_transform_i = joint_offset_i @ jnt_transform_i @ joint_offset_i.inverse()
+
                             frame_transform = frame_transform @ jnt_transform_i
                         elif jnt_type == 2:
                             jnt_transform_i = pris_jnt_transform[:, jnt_idx]
