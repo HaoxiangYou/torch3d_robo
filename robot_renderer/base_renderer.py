@@ -13,7 +13,7 @@ class BaseRoboRenderer:
         self.chain = build_chain_from_mjcf(xml_path)
         self.raw_meshes = build_meshes_from_chain(self.chain)
         self.build_background()
-        self.img_height = img_height,
+        self.img_height = img_height
         self.img_width = img_width
         self.to(self.device)
 

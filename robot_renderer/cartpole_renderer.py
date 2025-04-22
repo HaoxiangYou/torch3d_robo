@@ -33,7 +33,7 @@ class CartpoleRenderer(BaseRoboRenderer):
     def get_raster_settings(self, camera_id):
         if camera_id == 0:
             # img size for training 
-            return RasterizationSettings(image_size=84)
+            return RasterizationSettings(image_size=(self.img_height, self.img_width))
         else:
             # img size for rendering
             return RasterizationSettings(image_size=256)
