@@ -1,0 +1,15 @@
+name: robo3d
+channels:
+  - pytorch
+  - defaults
+dependencies:
+  - python=3.9.21
+  - pytorch=2.5.1
+  - torchvision=0.20.1
+  - pip=25.0
+  - pip:
+    - numpy==1.26.4
+    - mujoco==3.3.0
+    - trimesh==4.6.10
+    - matplotlib==3.9.4
+    - imageio==2.37.0
